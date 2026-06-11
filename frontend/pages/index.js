@@ -1,65 +1,18 @@
-/*import { getContract } from "../utils/getContract";
-
-export default function Home() {
-
-  const connectWallet = async () => {
-    if (!window.ethereum) {
-      alert("Please install MetaMask");
-      return;
-    }
-    await window.ethereum.request({ method: "eth_requestAccounts" });
-  };
-
-  const sendMessage = async () => {
-    const contract = await getContract();
-    const tx = await contract.sendMessage("Hello Web3!");
-    await tx.wait();
-    console.log("Message sent");
-  };
-
-  const getMessages = async () => {
-    const contract = await getContract();
-    const msgs = await contract.getMessages();
-    console.log(msgs);
-  };
-
-  return (
-    <div style={{ padding: "20px" }}>
-      <h1>Web3 Messenger</h1>
-
-      <button onClick={connectWallet}>Connect Wallet</button>
-      <br /><br />
-
-      <button onClick={sendMessage}>Send Message</button>
-      <br /><br />
-
-      <button onClick={getMessages}>Get Messages</button>
-    </div>
-  );
-}
-  */
-
-
-
-import { useState } from "react";
+/*import { useState } from "react";
+import { ethers } from "ethers";
 import { getContract } from "../utils/getContract";
 
 export default function Home() {
+  const [wallet, setWallet] = useState("");
+  const [receiver, setReceiver] = useState("");
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
-  const [wallet, setWallet] = useState("");
   const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState("");
-
-  const showToast = (msg) => {
-    setToast(msg);
-    setTimeout(() => setToast(""), 3000);
-  };
 
   const connectWallet = async () => {
     try {
       if (!window.ethereum) {
-        showToast("Please install MetaMask");
+        alert("Install MetaMask");
         return;
       }
 
@@ -68,75 +21,64 @@ export default function Home() {
       });
 
       setWallet(accounts[0]);
-      showToast("Wallet Connected");
+      alert("Wallet Connected");
     } catch (err) {
       console.error(err);
-      showToast("Connection Failed");
     }
   };
 
-  const getMessages = async () => {
+  const loadConversation = async () => {
     try {
-      setLoading(true);
-
-      const contract = await getContract();
-
-      if (!contract) {
-        showToast("Connect wallet first");
+      if (!receiver || !ethers.isAddress(receiver)) {
+        alert("Please enter a valid receiver address");
         return;
       }
 
-      const msgs = await contract.getMessages();
+      const contract = await getContract();
+      if (!contract) return;
 
-      setMessages(msgs);
+      const msgs = await contract.getConversation(receiver);
 
-      showToast(`Loaded ${msgs.length} messages`);
+      const formatted = msgs.map((m) => ({
+        sender: m.sender ?? m[0],
+        receiver: m.receiver ?? m[1],
+        content: m.content ?? m[2],
+        timestamp: m.timestamp ?? m[3],
+      }));
+
+      setMessages(formatted);
     } catch (err) {
-      console.error(err);
-      showToast("Failed to load messages");
-    } finally {
-      setLoading(false);
+      console.error("FULL ERROR:", err);
+      alert(err.reason || err.message);
     }
   };
 
   const sendMessage = async () => {
     try {
+      if (!receiver || !ethers.isAddress(receiver)) {
+        alert("Please enter a valid receiver address");
+        return;
+      }
       if (!message.trim()) {
-        showToast("Enter a message");
+        alert("Message cannot be empty");
         return;
       }
 
       setLoading(true);
-
       const contract = await getContract();
-
       if (!contract) {
-        showToast("Connect wallet first");
+        setLoading(false);
         return;
       }
 
-      const tx = await contract.sendMessage(message);
-
-      showToast("Waiting for confirmation...");
-
+      const tx = await contract.sendMessage(receiver, message);
       await tx.wait();
 
       setMessage("");
-
-      showToast("Message Sent!");
-
-      await getMessages();
+      await loadConversation();
     } catch (err) {
-      console.error(err);
-
-      if (
-        err.code === "ACTION_REJECTED" ||
-        err.code === 4001
-      ) {
-        showToast("Transaction Rejected");
-      } else {
-        showToast("Transaction Failed");
-      }
+      console.error("FULL ERROR:", err);
+      alert(err.reason || err.message);
     } finally {
       setLoading(false);
     }
@@ -146,31 +88,12 @@ export default function Home() {
     <div
       style={{
         minHeight: "100vh",
-        background:
-          "linear-gradient(135deg,#0f172a,#111827,#1e293b)",
+        background: "linear-gradient(135deg,#0f172a,#111827,#1e293b)",
         color: "white",
-        padding: "30px",
-        fontFamily: "Inter, sans-serif",
+        padding: "20px",
+        fontFamily: "Arial",
       }}
     >
-      {/* Toast */}
-      {toast && (
-        <div
-          style={{
-            position: "fixed",
-            top: 20,
-            right: 20,
-            background: "#22c55e",
-            color: "white",
-            padding: "12px 20px",
-            borderRadius: "12px",
-            zIndex: 1000,
-          }}
-        >
-          {toast}
-        </div>
-      )}
-
       <div
         style={{
           maxWidth: "900px",
@@ -180,21 +103,17 @@ export default function Home() {
         <h1
           style={{
             textAlign: "center",
-            fontSize: "3rem",
-            marginBottom: "30px",
+            marginBottom: "20px",
           }}
         >
-          🚀 Web3 Messenger
+          💬 Web3 Messenger V2
         </h1>
 
-        {/* Wallet Card */}
         <div
           style={{
-            backdropFilter: "blur(20px)",
             background: "rgba(255,255,255,0.08)",
-            border: "1px solid rgba(255,255,255,0.1)",
-            borderRadius: "20px",
             padding: "20px",
+            borderRadius: "20px",
             marginBottom: "20px",
           }}
         >
@@ -202,122 +121,106 @@ export default function Home() {
             <button
               onClick={connectWallet}
               style={{
-                width: "100%",
-                padding: "15px",
-                borderRadius: "12px",
+                padding: "12px 20px",
+                borderRadius: "10px",
                 border: "none",
                 background: "#3b82f6",
                 color: "white",
                 cursor: "pointer",
-                fontSize: "16px",
               }}
             >
               Connect Wallet
             </button>
           ) : (
             <>
-              <h3>🟢 Wallet Connected</h3>
+              <h3>🟢 Connected</h3>
               <p>{wallet}</p>
             </>
           )}
         </div>
 
-        {/* Chat Area */}
         <div
           style={{
-            backdropFilter: "blur(20px)",
             background: "rgba(255,255,255,0.08)",
-            border: "1px solid rgba(255,255,255,0.1)",
-            borderRadius: "20px",
             padding: "20px",
+            borderRadius: "20px",
           }}
         >
-          <div
+          <input
+            type="text"
+            value={receiver}
+            onChange={(e) => setReceiver(e.target.value)}
+            placeholder="Receiver Wallet Address"
             style={{
-              display: "flex",
-              justifyContent: "space-between",
+              width: "100%",
+              padding: "12px",
+              borderRadius: "10px",
+              marginBottom: "15px",
+              color: "black",
+              background: "white",
+            }}
+          />
+
+          <button
+            onClick={loadConversation}
+            style={{
               marginBottom: "20px",
+              padding: "10px 20px",
+              borderRadius: "10px",
+              border: "none",
+              background: "#6366f1",
+              color: "white",
+              cursor: "pointer",
             }}
           >
-            <h2>Messages</h2>
-
-            <button
-              onClick={getMessages}
-              style={{
-                background: "#6366f1",
-                color: "white",
-                border: "none",
-                padding: "10px 16px",
-                borderRadius: "10px",
-                cursor: "pointer",
-              }}
-            >
-              Refresh
-            </button>
-          </div>
+            Load Conversation
+          </button>
 
           <div
             style={{
               height: "400px",
               overflowY: "auto",
               marginBottom: "20px",
+              padding: "10px",
             }}
           >
-            {messages.length === 0 ? (
-              <p style={{ opacity: 0.7 }}>
-                No messages loaded yet.
-              </p>
-            ) : (
-              messages.map((msg, index) => (
+            {messages.map((msg, index) => {
+              const mine =
+                wallet &&
+                msg.sender &&
+                msg.sender.toLowerCase() === wallet.toLowerCase();
+
+              return (
                 <div
                   key={index}
                   style={{
-                    background: "rgba(255,255,255,0.1)",
-                    padding: "15px",
-                    borderRadius: "16px",
-                    marginBottom: "12px",
+                    display: "flex",
+                    justifyContent: mine ? "flex-end" : "flex-start",
+                    marginBottom: "10px",
                   }}
                 >
                   <div
                     style={{
-                      fontSize: "12px",
-                      opacity: 0.7,
+                      maxWidth: "70%",
+                      background: mine ? "#10b981" : "#374151",
+                      padding: "12px",
+                      borderRadius: "16px",
                     }}
                   >
-                    {msg.sender}
-                  </div>
-
-                  <div
-                    style={{
-                      marginTop: "8px",
-                      fontSize: "16px",
-                    }}
-                  >
-                    {msg.content}
-                  </div>
-
-                  <div
-                    style={{
-                      marginTop: "8px",
-                      fontSize: "11px",
-                      opacity: 0.6,
-                    }}
-                  >
-                    {new Date(
-                      Number(msg.timestamp) * 1000
-                    ).toLocaleString()}
+                    <div>{msg.content}</div>
+                    <small>
+                      {new Date(Number(msg.timestamp) * 1000).toLocaleString()}
+                    </small>
                   </div>
                 </div>
-              ))
-            )}
+              );
+            })}
           </div>
 
-          {/* Input Area */}
           <div
             style={{
               display: "flex",
               gap: "10px",
-              flexWrap: "wrap",
             }}
           >
             <input
@@ -327,13 +230,10 @@ export default function Home() {
               placeholder="Type your message..."
               style={{
                 flex: 1,
-                minWidth: "250px",
-                padding: "15px",
-                borderRadius: "12px",
-                border: "none",
-                outline: "none",
-                background: "rgba(255,255,255,0.1)",
-                color: "white",
+                padding: "12px",
+                borderRadius: "10px",
+                color: "black",
+                background: "white",
               }}
             />
 
@@ -341,12 +241,288 @@ export default function Home() {
               onClick={sendMessage}
               disabled={loading}
               style={{
-                padding: "15px 25px",
-                borderRadius: "12px",
+                padding: "12px 20px",
+                borderRadius: "10px",
                 border: "none",
-                background: loading
-                  ? "#6b7280"
-                  : "#10b981",
+                background: "#10b981",
+                color: "white",
+                cursor: "pointer",
+              }}
+            >
+              {loading ? "Sending..." : "Send"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+*/
+
+import { useState } from "react";
+import { ethers } from "ethers";
+import { getContract } from "../utils/getContract";
+
+export default function Home() {
+  const [wallet, setWallet] = useState("");
+  const [receiver, setReceiver] = useState("");
+  const [message, setMessage] = useState("");
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const connectWallet = async () => {
+    try {
+      if (!window.ethereum) {
+        alert("Install MetaMask");
+        return;
+      }
+
+      const accounts = await window.ethereum.request({
+        method: "eth_requestAccounts",
+      });
+
+      setWallet(accounts[0]);
+      alert("Wallet Connected");
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const loadConversation = async () => {
+    try {
+      if (!receiver || !ethers.isAddress(receiver)) {
+        alert("Please enter a valid receiver address");
+        return;
+      }
+
+      const contract = await getContract();
+      if (!contract) return;
+
+      const msgs = await contract.getConversation(receiver);
+
+      const formatted = msgs.map((m) => ({
+        sender: m.sender ?? m[0],
+        receiver: m.receiver ?? m[1],
+        content: m.content ?? m[2],
+        timestamp: m.timestamp ?? m[3],
+      }));
+
+      setMessages(formatted);
+    } catch (err) {
+      console.error("FULL ERROR:", err);
+      alert(err.reason || err.message);
+    }
+  };
+
+  const sendMessage = async () => {
+    try {
+      if (!receiver || !ethers.isAddress(receiver)) {
+        alert("Please enter a valid receiver address");
+        return;
+      }
+      if (!message.trim()) {
+        alert("Message cannot be empty");
+        return;
+      }
+
+      setLoading(true);
+      const contract = await getContract();
+      if (!contract) {
+        setLoading(false);
+        return;
+      }
+
+      const tx = await contract.sendMessage(receiver, message, {
+        maxPriorityFeePerGas: ethers.parseUnits("30", "gwei"),
+        maxFeePerGas: ethers.parseUnits("60", "gwei"),
+      });
+      await tx.wait();
+
+      setMessage("");
+      await loadConversation();
+    } catch (err) {
+      console.error("FULL ERROR:", err);
+      alert(err.reason || err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "linear-gradient(135deg,#0f172a,#111827,#1e293b)",
+        color: "white",
+        padding: "20px",
+        fontFamily: "Arial",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: "900px",
+          margin: "0 auto",
+        }}
+      >
+        <h1
+          style={{
+            textAlign: "center",
+            marginBottom: "20px",
+          }}
+        >
+          💬 Web3 Messenger V2
+        </h1>
+
+        <div
+          style={{
+            background: "rgba(255,255,255,0.08)",
+            padding: "20px",
+            borderRadius: "20px",
+            marginBottom: "20px",
+          }}
+        >
+          {!wallet ? (
+            <button
+              onClick={connectWallet}
+              style={{
+                padding: "12px 20px",
+                borderRadius: "10px",
+                border: "none",
+                background: "#3b82f6",
+                color: "white",
+                cursor: "pointer",
+              }}
+            >
+              Connect Wallet
+            </button>
+          ) : (
+            <>
+              <h3>🟢 Connected</h3>
+              <p>{wallet}</p>
+              <button
+                onClick={() => setReceiver(wallet)}
+                style={{
+                  marginTop: "10px",
+                  padding: "8px 16px",
+                  borderRadius: "10px",
+                  border: "none",
+                  background: "#f59e0b",
+                  color: "white",
+                  cursor: "pointer",
+                }}
+              >
+                📝 Message Myself
+              </button>
+            </>
+          )}
+        </div>
+
+        <div
+          style={{
+            background: "rgba(255,255,255,0.08)",
+            padding: "20px",
+            borderRadius: "20px",
+          }}
+        >
+          <input
+            type="text"
+            value={receiver}
+            onChange={(e) => setReceiver(e.target.value)}
+            placeholder="Receiver Wallet Address"
+            style={{
+              width: "100%",
+              padding: "12px",
+              borderRadius: "10px",
+              marginBottom: "15px",
+              color: "black",
+              background: "white",
+            }}
+          />
+
+          <button
+            onClick={loadConversation}
+            style={{
+              marginBottom: "20px",
+              padding: "10px 20px",
+              borderRadius: "10px",
+              border: "none",
+              background: "#6366f1",
+              color: "white",
+              cursor: "pointer",
+            }}
+          >
+            Load Conversation
+          </button>
+
+          <div
+            style={{
+              height: "400px",
+              overflowY: "auto",
+              marginBottom: "20px",
+              padding: "10px",
+            }}
+          >
+            {messages.map((msg, index) => {
+              const mine =
+                wallet &&
+                msg.sender &&
+                msg.sender.toLowerCase() === wallet.toLowerCase();
+
+              return (
+                <div
+                  key={index}
+                  style={{
+                    display: "flex",
+                    justifyContent: mine ? "flex-end" : "flex-start",
+                    marginBottom: "10px",
+                  }}
+                >
+                  <div
+                    style={{
+                      maxWidth: "70%",
+                      background: mine ? "#10b981" : "#374151",
+                      padding: "12px",
+                      borderRadius: "16px",
+                    }}
+                  >
+                    <div>{msg.content}</div>
+                    <small>
+                      {new Date(Number(msg.timestamp) * 1000).toLocaleString()}
+                    </small>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              gap: "10px",
+            }}
+          >
+            <input
+              type="text"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Type your message..."
+              style={{
+                flex: 1,
+                padding: "12px",
+                borderRadius: "10px",
+                color: "black",
+                background: "white",
+              }}
+            />
+
+            <button
+              onClick={sendMessage}
+              disabled={loading}
+              style={{
+                padding: "12px 20px",
+                borderRadius: "10px",
+                border: "none",
+                background: "#10b981",
                 color: "white",
                 cursor: "pointer",
               }}
